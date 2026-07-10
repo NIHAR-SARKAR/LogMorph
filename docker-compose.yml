@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  logmorph:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    environment:
+      - DATABASE_URL=sqlite:///data/logmorph.db
+      - SECRET_KEY=change-me-in-production
+    restart: unless-stopped
