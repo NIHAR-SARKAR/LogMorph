@@ -25,6 +25,12 @@ Cargo.lock
 *.db-wal
 *.db-shm
 
+# Environment
+.env
+backend/.env
+**/.env
+!**/.env.example
+
 # IDE
 .idea/
 .vscode/

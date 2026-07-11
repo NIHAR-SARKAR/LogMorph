@@ -18,13 +18,18 @@ app_settings = get_settings()
 if not os.environ.get("SKIP_TABLE_CREATE"):
     Base.metadata.create_all(bind=engine)
 
+# Swagger/ReDoc docs only enabled in non-production environments
+docs_url = "/docs" if app_settings.is_docs_enabled else None
+redoc_url = "/redoc" if app_settings.is_docs_enabled else None
+openapi_url = "/openapi.json" if app_settings.is_docs_enabled else None
+
 app = FastAPI(
     title=app_settings.APP_NAME,
     version=app_settings.VERSION,
     description="AI-powered log management and analysis platform",
-    docs_url="/api/docs",
-    redoc_url="/api/redoc",
-    openapi_url="/api/openapi.json"
+    docs_url=docs_url,
+    redoc_url=redoc_url,
+    openapi_url=openapi_url,
 )
 
 # CORS
