@@ -26,13 +26,14 @@ if exist "%ROOT%\backend\.env" (
 
 :: --- Read frontend config from frontend/.env ---
 set "FRONTEND_PORT=3000"
-set "FRONTEND_HOST=0.0.0.0"
+:: VITE_ALLOWED_HOSTS is handled inside vite.config.ts, not passed as --host
+:: --host 0.0.0.0 binds to all interfaces so all allowed hosts can reach it
+set "FRONTEND_BIND_HOST=0.0.0.0"
 if exist "%ROOT%\frontend\.env" (
     for /f "usebackq tokens=1,2 delims==" %%a in ("%ROOT%\frontend\.env") do (
         set "_key=%%a"
         set "_val=%%b"
         if "!_key!"=="VITE_PORT" set "FRONTEND_PORT=!_val!"
-        if "!_key!"=="VITE_ALLOWED_HOSTS" set "FRONTEND_HOST=!_val!"
     )
 )
 
@@ -65,7 +66,7 @@ start "LogMorph AI Backend" cmd /k "cd /d "%ROOT%\backend" && call .venv\Scripts
 timeout /t 3 /nobreak >nul
 
 :: Start frontend in a new window
-start "LogMorph AI Frontend" cmd /k "cd /d "%ROOT%\frontend" && npm run dev -- --host !FRONTEND_HOST! --port !FRONTEND_PORT!"
+start "LogMorph AI Frontend" cmd /k "cd /d "%ROOT%\frontend" && npm run dev -- --host !FRONTEND_BIND_HOST! --port !FRONTEND_PORT!"
 
 echo.
 echo Both servers are starting in separate windows.

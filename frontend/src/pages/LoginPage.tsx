@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Sparkles, Eye, EyeOff, Loader2 } from 'lucide-react'
+import { Eye, EyeOff, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useAuthStore } from '@/store/authStore'
@@ -43,11 +43,8 @@ export function LoginPage() {
       <div className="w-full max-w-md p-8 space-y-6">
         <div className="text-center space-y-2">
           <div className="flex justify-center">
-            <div className="h-16 w-16 rounded-2xl bg-primary/10 flex items-center justify-center">
-              <Sparkles className="h-8 w-8 text-primary" />
-            </div>
+            <img src="/logmorph-logo.png" alt="LogMorph AI" className="h-36 rounded-2xl object-contain" />
           </div>
-          <h1 className="text-3xl font-bold">LogMorph AI</h1>
           <p className="text-muted-foreground">AI-powered log management platform</p>
         </div>
 

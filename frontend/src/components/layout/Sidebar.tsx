@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, FolderOpen, Search, Bell, Settings, LogOut,
   ChevronLeft, ChevronRight, FileText, BrainCircuit, Shield,
-  Menu, X, Sparkles
+  Menu, X
 } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 import { useAppStore } from '@/store/appStore'
@@ -37,7 +37,7 @@ export function Sidebar() {
     >
       <div className="flex h-16 items-center justify-between px-4 border-b">
         <div className="flex items-center gap-2 overflow-hidden">
-          <Sparkles className="h-6 w-6 text-primary shrink-0" />
+          <img src="/logmorph-logo.png" alt="LogMorph AI" className="h-8 w-8 shrink-0 rounded object-contain" />
           {sidebarOpen && (
             <span className="font-bold text-lg whitespace-nowrap animate-fade-in">
               LogMorph AI
@@ -106,7 +106,7 @@ export function MobileNav() {
     <>
       <div className="lg:hidden fixed top-0 left-0 right-0 z-50 h-14 bg-card border-b flex items-center justify-between px-4">
         <div className="flex items-center gap-2">
-          <Sparkles className="h-5 w-5 text-primary" />
+          <img src="/logmorph-logo.png" alt="LogMorph AI" className="h-6 w-6 rounded object-contain" />
           <span className="font-bold">LogMorph AI</span>
         </div>
         <Button variant="ghost" size="icon" onClick={() => setOpen(!open)}>

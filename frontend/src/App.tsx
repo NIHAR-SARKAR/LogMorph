@@ -28,6 +28,7 @@ const queryClient = new QueryClient({
 
 function ProtectedRoute({ children, adminOnly = false }: { children: React.ReactNode; adminOnly?: boolean }) {
   const { isAuthenticated, isLoading, user } = useAuthStore()
+  const { sidebarOpen } = useAppStore()
 
   if (isLoading) {
     return (
@@ -49,7 +50,7 @@ function ProtectedRoute({ children, adminOnly = false }: { children: React.React
     <div className="min-h-screen bg-background">
       <MobileNav />
       <Sidebar />
-      <main className="transition-all duration-300 pt-14 lg:pt-0 lg:ml-64">
+      <main className={`transition-all duration-300 pt-14 lg:pt-0 ${sidebarOpen ? 'lg:ml-64' : 'lg:ml-16'}`}>
         {children}
       </main>
     </div>
