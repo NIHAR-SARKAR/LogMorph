@@ -13,9 +13,12 @@ import { Dialog, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { projectApi, logApi } from '@/services/api'
 import { useToast } from '@/components/ui/toast'
+import { useAuthStore } from '@/store/authStore'
 import type { Project, Environment, LogSource } from '@/types'
 
 export function ProjectDetailPage() {
+  const { user } = useAuthStore()
+  const canEdit = user?.role === 'admin'
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -235,10 +238,12 @@ export function ProjectDetailPage() {
 
         <TabsContent value="environments" className="mt-4 space-y-4">
           <div className="flex justify-end">
-            <Button onClick={() => setShowEnvDialog(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Environment
-            </Button>
+            {canEdit && (
+              <Button onClick={() => setShowEnvDialog(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Environment
+              </Button>
+            )}
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {(environments || []).map((env: Environment) => (
@@ -249,14 +254,16 @@ export function ProjectDetailPage() {
                       <CardTitle className="text-lg">{env.name}</CardTitle>
                       <CardDescription className="capitalize">{env.type}</CardDescription>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8"
-                      onClick={() => deleteEnvMutation.mutate(env.id)}
-                    >
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
+                    {canEdit && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => deleteEnvMutation.mutate(env.id)}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    )}
                   </div>
                 </CardHeader>
                 <CardContent>
@@ -275,10 +282,12 @@ export function ProjectDetailPage() {
 
         <TabsContent value="sources" className="mt-4 space-y-4">
           <div className="flex justify-end">
-            <Button onClick={() => setShowSourceDialog(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Log Source
-            </Button>
+            {canEdit && (
+              <Button onClick={() => setShowSourceDialog(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Log Source
+              </Button>
+            )}
           </div>
           <div className="space-y-3">
             {(sources || []).map((source: LogSource) => (
@@ -302,40 +311,44 @@ export function ProjectDetailPage() {
                         <RefreshCw className="h-4 w-4 mr-1" />
                         Scan
                       </Button>
-                      <Button
-                        variant={source.enabled ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => updateSourceMutation.mutate({ sourceId: source.id, data: { enabled: !source.enabled } })}
-                      >
-                        <Power className="h-3.5 w-3.5 mr-1" />
-                        {source.enabled ? 'Disable' : 'Enable'}
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setEditingSource(source)
-                          setEditSourceForm({
-                            name: source.name,
-                            path: source.path,
-                            file_pattern: source.file_pattern,
-                            enabled: source.enabled,
-                            recursive_scan: source.recursive_scan,
-                            auto_refresh: source.auto_refresh,
-                          })
-                        }}
-                      >
-                        <Edit2 className="h-3.5 w-3.5 mr-1" />
-                        Edit
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={() => deleteSourceMutation.mutate(source.id)}
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
+                      {canEdit && (
+                        <>
+                          <Button
+                            variant={source.enabled ? 'default' : 'outline'}
+                            size="sm"
+                            onClick={() => updateSourceMutation.mutate({ sourceId: source.id, data: { enabled: !source.enabled } })}
+                          >
+                            <Power className="h-3.5 w-3.5 mr-1" />
+                            {source.enabled ? 'Disable' : 'Enable'}
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setEditingSource(source)
+                              setEditSourceForm({
+                                name: source.name,
+                                path: source.path,
+                                file_pattern: source.file_pattern,
+                                enabled: source.enabled,
+                                recursive_scan: source.recursive_scan,
+                                auto_refresh: source.auto_refresh,
+                              })
+                            }}
+                          >
+                            <Edit2 className="h-3.5 w-3.5 mr-1" />
+                            Edit
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => deleteSourceMutation.mutate(source.id)}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </>
+                      )}
                     </div>
                   </div>
                 </CardContent>

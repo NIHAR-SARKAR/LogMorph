@@ -26,8 +26,6 @@ def list_projects(
 ):
     """List all projects."""
     query = db.query(Project)
-    if current_user.role.value == "viewer":
-        query = query.filter(Project.owner_id == current_user.id)
 
     projects = query.offset(skip).limit(limit).all()
 
@@ -41,7 +39,7 @@ def list_projects(
 @router.post("", response_model=ProjectSchema, status_code=status.HTTP_201_CREATED)
 def create_project(
     project: ProjectCreate,
-    current_user: User = Depends(require_developer),
+    current_user: User = Depends(require_admin),
     db: Session = Depends(get_db)
 ):
     """Create a new project."""
@@ -76,7 +74,7 @@ def get_project(
 def update_project(
     project_id: int,
     project_update: ProjectUpdate,
-    current_user: User = Depends(require_developer),
+    current_user: User = Depends(require_admin),
     db: Session = Depends(get_db)
 ):
     """Update project."""
@@ -124,7 +122,7 @@ def list_environments(
 def create_environment(
     project_id: int,
     env: EnvironmentCreate,
-    current_user: User = Depends(require_developer),
+    current_user: User = Depends(require_admin),
     db: Session = Depends(get_db)
 ):
     """Create environment for project."""
@@ -177,7 +175,7 @@ def list_log_sources(
 def create_log_source(
     project_id: int,
     source: LogSourceCreate,
-    current_user: User = Depends(require_developer),
+    current_user: User = Depends(require_admin),
     db: Session = Depends(get_db)
 ):
     """Create log source."""
@@ -231,7 +229,7 @@ def update_log_source(
     project_id: int,
     source_id: int,
     source_update: LogSourceUpdate,
-    current_user: User = Depends(require_developer),
+    current_user: User = Depends(require_admin),
     db: Session = Depends(get_db)
 ):
     """Update log source."""

@@ -12,6 +12,7 @@ import { Dialog, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui
 import { Badge } from '@/components/ui/badge'
 import { parserApi } from '@/services/api'
 import { useToast } from '@/components/ui/toast'
+import { useAuthStore } from '@/store/authStore'
 import type { ParserTemplate } from '@/types'
 
 const formatIcons: Record<string, any> = {
@@ -23,6 +24,8 @@ const formatIcons: Record<string, any> = {
 }
 
 export function ParsersPage() {
+  const { user } = useAuthStore()
+  const canEdit = user?.role === 'admin'
   const [showCreate, setShowCreate] = useState(false)
   const [showTest, setShowTest] = useState(false)
   const [selectedTemplate, setSelectedTemplate] = useState<ParserTemplate | null>(null)
@@ -96,7 +99,7 @@ export function ParsersPage() {
           <h1 className="text-3xl font-bold tracking-tight">Parser Templates</h1>
           <p className="text-muted-foreground">Manage log parsing configurations</p>
         </div>
-        <Button onClick={() => setShowCreate(true)}>
+        <Button onClick={() => setShowCreate(true)} disabled={!canEdit}>
           <Plus className="h-4 w-4 mr-2" />
           New Template
         </Button>
@@ -137,7 +140,7 @@ export function ParsersPage() {
                     {template.format_type}
                   </Badge>
                   <div className="flex gap-1">
-                    {!template.is_builtin && (
+                    {!template.is_builtin && canEdit && (
                       <Button
                         variant="ghost"
                         size="icon"

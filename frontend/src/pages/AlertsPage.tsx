@@ -12,6 +12,7 @@ import { Dialog, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { alertApi } from '@/services/api'
 import { useToast } from '@/components/ui/toast'
+import { useAuthStore } from '@/store/authStore'
 import type { AlertRule, Notification } from '@/types'
 
 const conditionLabels: Record<string, string> = {
@@ -32,6 +33,8 @@ const severityColors: Record<string, string> = {
 }
 
 export function AlertsPage() {
+  const { user } = useAuthStore()
+  const canEdit = user?.role === 'admin'
   const [activeTab, setActiveTab] = useState('rules')
   const [showCreate, setShowCreate] = useState(false)
   const [newRule, setNewRule] = useState({
@@ -121,7 +124,7 @@ export function AlertsPage() {
           </h1>
           <p className="text-muted-foreground">Monitor and manage alert rules and notifications</p>
         </div>
-        <Button onClick={() => setShowCreate(true)}>
+        <Button onClick={() => setShowCreate(true)} disabled={!canEdit}>
           <Plus className="h-4 w-4 mr-2" />
           New Rule
         </Button>
@@ -169,29 +172,33 @@ export function AlertsPage() {
                         {rule.notify_slack && <Slack className="h-4 w-4 text-muted-foreground" />}
                         {rule.notify_webhook && <Webhook className="h-4 w-4 text-muted-foreground" />}
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={() => setEditRule(rule)}
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => updateMutation.mutate({ id: rule.id, data: { enabled: !rule.enabled } })}
-                      >
-                        {rule.enabled ? 'Disable' : 'Enable'}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={() => deleteMutation.mutate(rule.id)}
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
+                      {canEdit && (
+                        <>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => setEditRule(rule)}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => updateMutation.mutate({ id: rule.id, data: { enabled: !rule.enabled } })}
+                          >
+                            {rule.enabled ? 'Disable' : 'Enable'}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => deleteMutation.mutate(rule.id)}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </>
+                      )}
                     </div>
                   </div>
                 </CardContent>

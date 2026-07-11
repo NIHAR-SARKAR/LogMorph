@@ -5,7 +5,7 @@ from app.database import get_db
 from app.models.alert import AlertRule, Notification
 from app.models.user import User
 from app.schemas.alert import AlertRule as ARSchema, AlertRuleCreate, AlertRuleUpdate, Notification as NotifSchema
-from app.core.security import get_current_active_user, require_developer
+from app.core.security import get_current_active_user, require_admin
 from app.core.logging import logger
 
 router = APIRouter(prefix="/alerts", tags=["Alerts"])
@@ -26,7 +26,7 @@ def list_rules(
 def create_rule(
     rule: AlertRuleCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_developer)
+    current_user: User = Depends(require_admin)
 ):
     """Create alert rule."""
     db_rule = AlertRule(**rule.model_dump(), created_by_id=current_user.id)
@@ -52,7 +52,7 @@ def update_rule(
     rule_id: int,
     rule_update: AlertRuleUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_developer)
+    current_user: User = Depends(require_admin)
 ):
     """Update alert rule."""
     rule = db.query(AlertRule).filter(AlertRule.id == rule_id).first()
@@ -69,7 +69,7 @@ def update_rule(
 def delete_rule(
     rule_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_developer)
+    current_user: User = Depends(require_admin)
 ):
     """Delete alert rule."""
     rule = db.query(AlertRule).filter(AlertRule.id == rule_id).first()

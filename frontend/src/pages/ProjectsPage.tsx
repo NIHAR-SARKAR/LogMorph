@@ -12,9 +12,12 @@ import { Dialog, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui
 import { Badge } from '@/components/ui/badge'
 import { projectApi } from '@/services/api'
 import { useToast } from '@/components/ui/toast'
+import { useAuthStore } from '@/store/authStore'
 import type { Project } from '@/types'
 
 export function ProjectsPage() {
+  const { user } = useAuthStore()
+  const canEdit = user?.role === 'admin'
   const [showCreate, setShowCreate] = useState(false)
   const [newProject, setNewProject] = useState({ name: '', description: '', tags: '', path: '' })
   const [deleteId, setDeleteId] = useState<number | null>(null)
@@ -107,7 +110,7 @@ export function ProjectsPage() {
           <h1 className="text-3xl font-bold tracking-tight">Projects</h1>
           <p className="text-muted-foreground">Manage your log projects</p>
         </div>
-        <Button onClick={() => setShowCreate(true)}>
+        <Button onClick={() => setShowCreate(true)} disabled={!canEdit}>
           <Plus className="h-4 w-4 mr-2" />
           New Project
         </Button>

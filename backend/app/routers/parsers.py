@@ -6,7 +6,7 @@ from app.models.parser import ParserTemplate
 from app.models.user import User
 from app.schemas.parser import ParserTemplate as PTSchema, ParserTemplateCreate, ParserTemplateUpdate, ParserTestRequest, ParserTestResult
 from app.services.parser_service import parser_engine
-from app.core.security import get_current_active_user, require_developer
+from app.core.security import get_current_active_user, require_admin
 from app.core.logging import logger
 
 router = APIRouter(prefix="/parsers", tags=["Parsers"])
@@ -38,7 +38,7 @@ def list_templates(
 def create_template(
     template: ParserTemplateCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_developer)
+    current_user: User = Depends(require_admin)
 ):
     """Create parser template."""
     db_template = ParserTemplate(
@@ -66,7 +66,7 @@ def update_template(
     template_id: int,
     template_update: ParserTemplateUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_developer)
+    current_user: User = Depends(require_admin)
 ):
     """Update parser template."""
     template = db.query(ParserTemplate).filter(ParserTemplate.id == template_id).first()
@@ -85,7 +85,7 @@ def update_template(
 def delete_template(
     template_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_developer)
+    current_user: User = Depends(require_admin)
 ):
     """Delete parser template."""
     template = db.query(ParserTemplate).filter(ParserTemplate.id == template_id).first()

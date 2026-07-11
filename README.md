@@ -2,6 +2,11 @@
 
 AI-powered log management and analysis platform for developers, DevOps engineers, and support teams.
 
+<p align="center">
+  <img src="logmorph-logo.png" alt="LogMorph Logo" width="256" />
+</p>
+
+
 ## Table of Contents
 
 - [Overview](#overview)
