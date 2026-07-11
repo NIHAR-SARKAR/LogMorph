@@ -415,7 +415,8 @@ export function ProjectDetailPage() {
           </div>
           <div className="space-y-2">
             <label className="text-sm font-medium">File Pattern</label>
-            <Input value={newSource.file_pattern} onChange={(e) => setNewSource({ ...newSource, file_pattern: e.target.value })} />
+            <Input value={newSource.file_pattern} onChange={(e) => setNewSource({ ...newSource, file_pattern: e.target.value })} placeholder="logfile*, *.log, error_*" />
+            <p className="text-xs text-muted-foreground">Comma-separated glob patterns. Use * for wildcards.</p>
           </div>
           <div className="flex gap-4">
             <label className="flex items-center gap-2 text-sm">
@@ -472,7 +473,8 @@ export function ProjectDetailPage() {
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">File Pattern</label>
-              <Input value={editSourceForm.file_pattern} onChange={(e) => setEditSourceForm({ ...editSourceForm, file_pattern: e.target.value })} />
+              <Input value={editSourceForm.file_pattern} onChange={(e) => setEditSourceForm({ ...editSourceForm, file_pattern: e.target.value })} placeholder="logfile*, *.log, error_*" />
+              <p className="text-xs text-muted-foreground">Comma-separated glob patterns. Use * for wildcards.</p>
             </div>
             <div className="flex gap-4">
               <label className="flex items-center gap-2 text-sm">

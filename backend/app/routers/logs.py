@@ -52,6 +52,9 @@ def scan_log_source(
     files_found = []
 
     pattern = source.file_pattern or '*'
+    # Support comma-separated patterns: "logfile*,*.log,error_*"
+    patterns = [p.strip() for p in pattern.split(',') if p.strip()] or ['*']
+
     if os.path.isfile(path):
         # Single file
         files = [path]
@@ -61,13 +64,13 @@ def scan_log_source(
             files = []
             for root, _, filenames in os.walk(path):
                 for fname in filenames:
-                    if fnmatch.fnmatch(fname, pattern):
+                    if any(fnmatch.fnmatch(fname, p) for p in patterns):
                         files.append(os.path.join(root, fname))
         else:
             files = [os.path.join(path, f) for f in os.listdir(path)
-                     if os.path.isfile(os.path.join(path, f)) and fnmatch.fnmatch(f, pattern)]
+                     if os.path.isfile(os.path.join(path, f)) and any(fnmatch.fnmatch(f, p) for p in patterns)]
 
-    logger.info(f"Source {log_source_id}: matched {len(files)} files with pattern {pattern!r}")
+    logger.info(f"Source {log_source_id}: matched {len(files)} files with patterns {patterns!r}")
 
     for filepath in files:
         try:
@@ -130,14 +133,60 @@ def parse_log_file(
         # Clear existing entries
         db.query(LogEntry).filter(LogEntry.log_file_id == log_file_id).delete()
 
+        import re as re_mod
+
+        # Timestamp at the start of a line (allow BOM/whitespace prefix)
+        ts_pattern = re_mod.compile(
+            r'^[\s\ufeff]*(\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:[.,]\d+)?)'
+        )
+
+        # Format 1 (pipe):  | INFO |  or  | ERROR |
+        sev_pipe_pattern = re_mod.compile(
+            r'\|\s*(TRACE|DEBUG|INFO|SUCCESS|NOTICE|WARN(?:ING)?|ERROR|CRITICAL|CRIT|FATAL)\s*\|',
+            re_mod.IGNORECASE,
+        )
+        # Format 2 (bracket-dash):  - [logger] - INFO - message
+        sev_bracket_pattern = re_mod.compile(
+            r'-\s*\[([^\]]+)\]\s*-\s*(TRACE|DEBUG|INFO|SUCCESS|NOTICE|WARN(?:ING)?|ERROR|CRITICAL|CRIT|FATAL)\s*-',
+            re_mod.IGNORECASE,
+        )
+        # Format 3 (plain):  2026-07-10 11:37:51,190 INFO message
+        sev_plain_pattern = re_mod.compile(
+            r'\b(TRACE|DEBUG|INFO|SUCCESS|NOTICE|WARN(?:ING)?|ERROR|CRITICAL|CRIT|FATAL)\b',
+            re_mod.IGNORECASE,
+        )
+
+        SEVERITY_MAP = {
+            'trace': Severity.TRACE, 'debug': Severity.DEBUG,
+            'info': Severity.INFO, 'success': Severity.SUCCESS,
+            'notice': Severity.NOTICE,
+            'warn': Severity.WARNING, 'warning': Severity.WARNING,
+            'error': Severity.ERROR,
+            'critical': Severity.CRITICAL, 'crit': Severity.CRITICAL,
+            'fatal': Severity.FATAL,
+        }
+
+        def _parse_severity(sev_str):
+            key = sev_str.strip().lower()
+            if key.startswith('warn'):
+                key = 'warning'
+            elif key == 'crit':
+                key = 'critical'
+            return SEVERITY_MAP.get(key, Severity.UNKNOWN)
+
+        def _parse_ts(ts_str):
+            ts_str = ts_str.replace(',', '.')
+            for fmt in ('%Y-%m-%d %H:%M:%S', '%Y-%m-%dT%H:%M:%S', '%Y-%m-%d %H:%M:%S.%f', '%Y-%m-%dT%H:%M:%S.%f'):
+                try:
+                    return datetime.strptime(ts_str[:26], fmt)
+                except ValueError:
+                    continue
+            return None
+
         entries = []
         line_number = 0
         current_entry = None
         stack_lines = []
-
-        import re as re_mod
-        ts_pattern = re_mod.compile(r'^\s*(\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:\.\d+)?)')
-        sev_pattern = re_mod.compile(r'\|\s*(TRACE|DEBUG|INFO|SUCCESS|NOTICE|WARN(?:ING)?|ERROR|CRITICAL|CRIT|FATAL)\s*\|', re_mod.IGNORECASE)
 
         def _flush_current():
             nonlocal current_entry, stack_lines, entries
@@ -159,97 +208,21 @@ def parse_log_file(
                 if not line.strip():
                     continue
 
-                # Check if this line starts a new log entry (has a timestamp at the start)
                 ts_match = ts_pattern.match(line)
-                sev_match = sev_pattern.search(line)
-
-                if ts_match and sev_match:
-                    # New entry — flush the previous one
-                    _flush_current()
-
-                    msg = line
-                    ts = None
-                    ts_str = ts_match.group(1)
-                    try:
-                        ts = datetime.strptime(ts_str[:19], '%Y-%m-%d %H:%M:%S')
-                    except:
-                        try:
-                            ts = datetime.strptime(ts_str[:19], '%Y-%m-%dT%H:%M:%S')
-                        except:
-                            pass
-
-                    # Detect severity from the | SEVERITY | pattern
-                    sev_str = sev_match.group(1).upper()
-                    if sev_str.startswith('WARN'):
-                        severity = Severity.WARNING
-                    elif sev_str == 'CRIT':
-                        severity = Severity.CRITICAL
-                    else:
-                        try:
-                            severity = Severity(sev_str.lower())
-                        except ValueError:
-                            severity = Severity.UNKNOWN
-
-                    # Extract logger/module from format: | SEV | LoggerName [thread] - MESSAGE:
-                    logger_name = None
-                    module_name = None
-                    after_sev = line[sev_match.end():]
-                    logger_match = re_mod.match(r'\s*([A-Za-z_][\w.<>]+)', after_sev)
-                    if logger_match:
-                        logger_name = logger_match.group(1)
-                        if '.' in logger_name:
-                            parts = logger_name.rsplit('.', 1)
-                            module_name = parts[0]
-
-                    # Extract exception info
-                    exception_type = None
-                    exception_msg = None
-                    if 'Exception' in line:
-                        parts = line.split('Exception')
-                        if len(parts) > 1:
-                            prefix_words = parts[0].strip().split()
-                            exception_type = (prefix_words[-1] + 'Exception') if prefix_words else 'Exception'
-                            exception_msg = 'Exception' + parts[1]
-                    elif 'Error:' in line:
-                        parts = line.split('Error:')
-                        if len(parts) > 1:
-                            prefix_words = parts[0].strip().split()
-                            exception_type = (prefix_words[-1] + 'Error') if prefix_words else 'Error'
-                            exception_msg = 'Error:' + parts[1]
-
-                    current_entry = LogEntry(
-                        log_file_id=log_file_id,
-                        line_number=line_number,
-                        timestamp=ts,
-                        severity=severity,
-                        message=msg[:4000] if len(msg) > 4000 else msg,
-                        raw_line=line[:8045] if len(line) > 8045 else line,
-                        logger=logger_name,
-                        module=module_name,
-                        exception_type=exception_type,
-                        exception_message=exception_msg
-                    )
-                    stack_lines = []
-                else:
-                    # Continuation line — either stack trace or multi-line content
+                if not ts_match:
+                    # Continuation line — append to current entry's stack trace
                     if current_entry is not None:
                         stripped = line.strip()
-                        # Detect exception type lines like "Npgsql.PostgresException (...)"
-                        exc_match = re_mod.match(r'^([\w.]+Exception\b)', stripped)
+                        exc_match = re_mod.match(r'^([\w.]+(?:Exception|Error)\b)', stripped)
                         if exc_match and not current_entry.exception_type:
                             current_entry.exception_type = exc_match.group(1)
                             current_entry.exception_message = stripped
-                        # Detect "Severity: ERROR" in Npgsql exception output
                         elif re_mod.match(r'^Severity:\s*(\w+)', stripped, re_mod.IGNORECASE):
                             sev_inner = re_mod.match(r'^Severity:\s*(\w+)', stripped, re_mod.IGNORECASE)
                             if sev_inner and current_entry.severity == Severity.UNKNOWN:
-                                try:
-                                    current_entry.severity = Severity(sev_inner.group(1).lower())
-                                except ValueError:
-                                    pass
+                                current_entry.severity = _parse_severity(sev_inner.group(1))
                         stack_lines.append(line[:8045])
                     else:
-                        # No current entry — create a standalone entry
                         current_entry = LogEntry(
                             log_file_id=log_file_id,
                             line_number=line_number,
@@ -259,6 +232,72 @@ def parse_log_file(
                             raw_line=line[:8045],
                         )
                         stack_lines = []
+                    continue
+
+                # We have a timestamp — try to detect format and extract fields
+                ts = _parse_ts(ts_str=ts_match.group(1))
+
+                # Try format 2 first: - [logger] - SEVERITY -
+                bracket_match = sev_bracket_pattern.search(line)
+                # Then format 1: | SEVERITY |
+                pipe_match = sev_pipe_pattern.search(line)
+                # Then format 3: plain severity keyword
+                plain_match = sev_plain_pattern.search(line)
+
+                if bracket_match:
+                    _flush_current()
+                    severity = _parse_severity(bracket_match.group(2))
+                    logger_name = bracket_match.group(1)
+                    module_name = logger_name.rsplit('.', 1)[0] if '.' in logger_name else None
+                elif pipe_match:
+                    _flush_current()
+                    severity = _parse_severity(pipe_match.group(1))
+                    # Extract logger after the | SEV | part
+                    after_sev = line[pipe_match.end():]
+                    logger_match = re_mod.match(r'\s*([A-Za-z_][\w.<>]+)', after_sev)
+                    logger_name = logger_match.group(1) if logger_match else None
+                    module_name = logger_name.rsplit('.', 1)[0] if logger_name and '.' in logger_name else None
+                elif plain_match:
+                    _flush_current()
+                    severity = _parse_severity(plain_match.group(1))
+                    logger_name = None
+                    module_name = None
+                else:
+                    # Timestamp but no recognizable severity — treat as new entry, unknown severity
+                    _flush_current()
+                    severity = Severity.UNKNOWN
+                    logger_name = None
+                    module_name = None
+
+                # Extract exception info
+                exception_type = None
+                exception_msg = None
+                if 'Exception' in line:
+                    parts = line.split('Exception')
+                    if len(parts) > 1:
+                        prefix_words = parts[0].strip().split()
+                        exception_type = (prefix_words[-1] + 'Exception') if prefix_words else 'Exception'
+                        exception_msg = 'Exception' + parts[1]
+                elif 'Error:' in line:
+                    parts = line.split('Error:')
+                    if len(parts) > 1:
+                        prefix_words = parts[0].strip().split()
+                        exception_type = (prefix_words[-1] + 'Error') if prefix_words else 'Error'
+                        exception_msg = 'Error:' + parts[1]
+
+                current_entry = LogEntry(
+                    log_file_id=log_file_id,
+                    line_number=line_number,
+                    timestamp=ts,
+                    severity=severity,
+                    message=line[:4000] if len(line) > 4000 else line,
+                    raw_line=line[:8045] if len(line) > 8045 else line,
+                    logger=logger_name,
+                    module=module_name,
+                    exception_type=exception_type,
+                    exception_message=exception_msg,
+                )
+                stack_lines = []
 
         _flush_current()
 
