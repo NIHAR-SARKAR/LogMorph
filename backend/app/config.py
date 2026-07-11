@@ -12,6 +12,15 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "development"  # development, staging, production
     DEBUG: bool = False
 
+    # Server
+    BACKEND_HOST: str = "0.0.0.0"
+    BACKEND_PORT: int = 8000
+    CORS_ORIGINS: str = "*"
+
+    # SSL (optional — set both key + cert paths to enable HTTPS)
+    SSL_KEY_FILE: str = ""
+    SSL_CERT_FILE: str = ""
+
     # Database
     DATABASE_URL: str = "sqlite:///./logmorph.db"
 
@@ -45,11 +54,22 @@ class Settings(BaseSettings):
         env_file_encoding = "utf-8"
         case_sensitive = True
 
-
     @property
     def is_docs_enabled(self) -> bool:
         """Swagger/ReDoc docs are only enabled in non-production environments."""
         return self.ENVIRONMENT.lower() != "production"
+
+    @property
+    def cors_origins_list(self) -> list[str]:
+        """Parse CORS_ORIGINS into a list."""
+        if self.CORS_ORIGINS.strip() == "*":
+            return ["*"]
+        return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
+
+    @property
+    def is_ssl_enabled(self) -> bool:
+        """SSL is enabled only if both key and cert file paths are set and exist."""
+        return bool(self.SSL_KEY_FILE and self.SSL_CERT_FILE)
 
 
 @lru_cache()

@@ -19,9 +19,9 @@ if not os.environ.get("SKIP_TABLE_CREATE"):
     Base.metadata.create_all(bind=engine)
 
 # Swagger/ReDoc docs only enabled in non-production environments
-docs_url = "/docs" if app_settings.is_docs_enabled else None
-redoc_url = "/redoc" if app_settings.is_docs_enabled else None
-openapi_url = "/openapi.json" if app_settings.is_docs_enabled else None
+docs_url = "/api/docs" if app_settings.is_docs_enabled else None
+redoc_url = "/api/redoc" if app_settings.is_docs_enabled else None
+openapi_url = "/api/openapi.json" if app_settings.is_docs_enabled else None
 
 app = FastAPI(
     title=app_settings.APP_NAME,
@@ -32,10 +32,10 @@ app = FastAPI(
     openapi_url=openapi_url,
 )
 
-# CORS
+# CORS — origins from .env
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=app_settings.cors_origins_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -103,7 +103,7 @@ async def startup_event():
                 AIProvider(
                     name="Ollama (Local)",
                     provider_type="ollama",
-                    base_url="http://localhost:11434",
+                    base_url=app_settings.OLLAMA_HOST,
                     model="llama3",
                     is_enabled=True
                 ),

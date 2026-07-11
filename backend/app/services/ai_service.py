@@ -5,6 +5,9 @@ from sqlalchemy.orm import Session
 from app.models.ai import AIProvider
 from app.schemas.ai import AIRequest, AIResponse, AIChatRequest, AIChatMessage
 from app.core.logging import logger
+from app.config import get_settings
+
+_settings = get_settings()
 
 class AIService:
     """Unified AI service supporting multiple providers."""
@@ -147,7 +150,7 @@ class AIService:
 
     async def _ollama_generate(self, provider: AIProvider, request: AIRequest) -> AIResponse:
         import httpx
-        base_url = provider.base_url or "http://localhost:11434"
+        base_url = provider.base_url or _settings.OLLAMA_HOST
 
         content = request.prompt
         if request.context:
@@ -176,7 +179,7 @@ class AIService:
 
     async def _lmstudio_generate(self, provider: AIProvider, request: AIRequest) -> AIResponse:
         import httpx
-        base_url = provider.base_url or "http://localhost:1234"
+        base_url = provider.base_url or _settings.LM_STUDIO_HOST
 
         content = request.prompt
         if request.context:
