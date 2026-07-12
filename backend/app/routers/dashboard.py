@@ -115,6 +115,8 @@ def get_dashboard_stats(
         logs_today=logs_today,
         errors_today=errors_today,
         warnings_today=warnings_today,
+        errors_in_range=errors_in_range if time_filter is not None else (agg.errors or 0),
+        warnings_in_range=warnings_in_range if time_filter is not None else (agg.warnings or 0),
         critical_logs=critical_in_range,
         ai_alerts=ai_alerts,
         storage_used_mb=storage_used_mb,
@@ -178,7 +180,8 @@ def _error_trend_data(db: Session, days: int = 7) -> List[Dict[str, Any]]:
     for date, severity, count in results:
         date_str = str(date)
         if date_str not in data_by_date:
-            data_by_date[date_str] = {"date": date_str}
+            data_by_date[date_str] = {"date": date_str, "count": 0}
         data_by_date[date_str][severity.value] = count
+        data_by_date[date_str]["count"] += count
 
     return list(data_by_date.values())

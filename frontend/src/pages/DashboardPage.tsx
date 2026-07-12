@@ -106,8 +106,8 @@ export function DashboardPage() {
         <StatCard title="Total Entries" value={(s.total_entries || 0).toLocaleString()} icon={LayoutDashboard} description={selectedDays === 0 ? 'All time' : `Last ${selectedDays} days`} />
         <StatCard title="Active Monitors" value={s.active_monitors || 0} icon={Activity} />
         <StatCard title="Logs Today" value={(s.logs_today || 0).toLocaleString()} icon={Clock} />
-        <StatCard title="Errors" value={(s.errors_today || 0).toLocaleString()} icon={AlertTriangle} description={selectedDays === 0 ? 'All time' : `Last ${selectedDays} days`} />
-        <StatCard title="Warnings" value={(s.warnings_today || 0).toLocaleString()} icon={AlertOctagon} description={selectedDays === 0 ? 'All time' : `Last ${selectedDays} days`} />
+        <StatCard title="Errors" value={(s.errors_in_range ?? (s.errors_today || 0)).toLocaleString()} icon={AlertTriangle} description={selectedDays === 0 ? 'All time' : `Last ${selectedDays} days`} />
+        <StatCard title="Warnings" value={(s.warnings_in_range ?? (s.warnings_today || 0)).toLocaleString()} icon={AlertOctagon} description={selectedDays === 0 ? 'All time' : `Last ${selectedDays} days`} />
         <StatCard title="Storage Used" value={`${(s.storage_used_mb || 0).toFixed(1)} MB`} icon={HardDrive} />
       </div>
 
@@ -138,8 +138,8 @@ export function DashboardPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Error Trend</CardTitle>
-            <CardDescription>Error count over time</CardDescription>
+            <CardTitle>Severity Trend</CardTitle>
+            <CardDescription>Log entries by severity over time</CardDescription>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
@@ -149,12 +149,22 @@ export function DashboardPage() {
                     <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3}/>
                     <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
                   </linearGradient>
+                  <linearGradient id="colorWarning" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="#f59e0b" stopOpacity={0}/>
+                  </linearGradient>
+                  <linearGradient id="colorInfo" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                  </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
                 <XAxis dataKey="date" tickFormatter={(v) => v.slice(5)} />
                 <YAxis />
                 <Tooltip />
-                <Area type="monotone" dataKey="count" stroke="#ef4444" fillOpacity={1} fill="url(#colorError)" />
+                <Area type="monotone" dataKey="error" stroke="#ef4444" fillOpacity={1} fill="url(#colorError)" name="Errors" />
+                <Area type="monotone" dataKey="warning" stroke="#f59e0b" fillOpacity={1} fill="url(#colorWarning)" name="Warnings" />
+                <Area type="monotone" dataKey="info" stroke="#3b82f6" fillOpacity={1} fill="url(#colorInfo)" name="Info" />
               </AreaChart>
             </ResponsiveContainer>
           </CardContent>

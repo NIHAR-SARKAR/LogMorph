@@ -55,6 +55,8 @@ class DashboardStats(BaseModel):
     logs_today: int
     errors_today: int
     warnings_today: int
+    errors_in_range: int = 0
+    warnings_in_range: int = 0
     critical_logs: int
     ai_alerts: int
     storage_used_mb: float

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Search, Filter, Download, Bookmark, BrainCircuit, ChevronDown, ChevronRight,
@@ -70,14 +71,20 @@ export function LogViewerPage() {
   const { refreshInterval } = useAppStore()
   const { user } = useAuthStore()
   const isAdmin = user?.role === 'admin'
+  const [searchParams, setSearchParams] = useSearchParams()
 
-  const [selectedProject, setSelectedProject] = useState<number | ''>('')
-  const [selectedEnvironment, setSelectedEnvironment] = useState<number | ''>('')
-  const [selectedSource, setSelectedSource] = useState<number | ''>('')
-  const [selectedFile, setSelectedFile] = useState<number | ''>('')
+  const numParam = (key: string): number | '' => {
+    const v = searchParams.get(key)
+    return v ? Number(v) : ''
+  }
+
+  const [selectedProject, setSelectedProject] = useState<number | ''>(numParam('project'))
+  const [selectedEnvironment, setSelectedEnvironment] = useState<number | ''>(numParam('env'))
+  const [selectedSource, setSelectedSource] = useState<number | ''>(numParam('source'))
+  const [selectedFile, setSelectedFile] = useState<number | ''>(numParam('file'))
 
   const [viewMode, setViewMode] = useState<'explorer' | 'raw'>('explorer')
-  const [preset, setPreset] = useState(0)
+  const [preset, setPreset] = useState(timePresets[4].ms)
   const [searchQuery, setSearchQuery] = useState('')
   const [isRegex, setIsRegex] = useState(false)
   const [caseSensitive, setCaseSensitive] = useState(false)
@@ -123,6 +130,23 @@ export function LogViewerPage() {
     queryKey: ['projects'],
     queryFn: () => projectApi.list().then(r => r.data)
   })
+
+  // Auto-select first project on initial load if none selected
+  useEffect(() => {
+    if (!selectedProject && projects && projects.length > 0) {
+      setSelectedProject(projects[0].id)
+    }
+  }, [projects, selectedProject])
+
+  // Sync selection state to URL query params
+  useEffect(() => {
+    const params: Record<string, string> = {}
+    if (selectedProject) params.project = String(selectedProject)
+    if (selectedEnvironment) params.env = String(selectedEnvironment)
+    if (selectedSource) params.source = String(selectedSource)
+    if (selectedFile) params.file = String(selectedFile)
+    setSearchParams(params, { replace: true })
+  }, [selectedProject, selectedEnvironment, selectedSource, selectedFile, setSearchParams])
 
   const { data: environments } = useQuery({
     queryKey: ['environments', selectedProject],
