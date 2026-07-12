@@ -69,7 +69,22 @@ class Settings(BaseSettings):
     @property
     def is_ssl_enabled(self) -> bool:
         """SSL is enabled only if both key and cert file paths are set and exist."""
-        return bool(self.SSL_KEY_FILE and self.SSL_CERT_FILE)
+        return bool(
+            self.SSL_KEY_FILE
+            and self.SSL_CERT_FILE
+            and Path(self.SSL_KEY_FILE).exists()
+            and Path(self.SSL_CERT_FILE).exists()
+        )
+
+    @property
+    def ssl_params(self) -> dict[str, str]:
+        """Return uvicorn ssl_* params when SSL is enabled."""
+        if self.is_ssl_enabled:
+            return {
+                "ssl_keyfile": self.SSL_KEY_FILE,
+                "ssl_certfile": self.SSL_CERT_FILE,
+            }
+        return {}
 
 
 @lru_cache()

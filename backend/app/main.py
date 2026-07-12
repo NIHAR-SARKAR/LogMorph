@@ -136,3 +136,32 @@ async def shutdown_event():
     from app.services.watcher_service import file_watcher
     file_watcher.stop_all()
     logger.info("Application shutdown")
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    settings = get_settings()
+    ssl_params = settings.ssl_params
+    if ssl_params:
+        logger.info(
+            "Starting HTTPS server on %s:%d (cert=%s, key=%s)",
+            settings.BACKEND_HOST,
+            settings.BACKEND_PORT,
+            settings.SSL_CERT_FILE,
+            settings.SSL_KEY_FILE,
+        )
+    else:
+        logger.info(
+            "Starting HTTP server on %s:%d (SSL not configured)",
+            settings.BACKEND_HOST,
+            settings.BACKEND_PORT,
+        )
+
+    uvicorn.run(
+        "app.main:app",
+        host=settings.BACKEND_HOST,
+        port=settings.BACKEND_PORT,
+        reload=settings.DEBUG,
+        **ssl_params,
+    )
