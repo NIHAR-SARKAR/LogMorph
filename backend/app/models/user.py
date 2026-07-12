@@ -30,3 +30,10 @@ class User(Base):
     projects = relationship("Project", back_populates="owner")
     activity_logs = relationship("ActivityLog", back_populates="user")
     saved_searches = relationship("SavedSearch", back_populates="user")
+    accessible_projects = relationship(
+        "Project",
+        secondary="user_project_access",
+        primaryjoin="User.id == user_project_access.c.user_id",
+        secondaryjoin="Project.id == user_project_access.c.project_id",
+        overlaps="projects,owner",
+    )

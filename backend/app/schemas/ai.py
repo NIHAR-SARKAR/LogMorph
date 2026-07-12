@@ -37,7 +37,7 @@ class AIRequest(BaseModel):
     provider_id: Optional[int] = None
     prompt: str
     context: Optional[str] = None
-    max_tokens: Optional[int] = 2000
+    max_tokens: Optional[int] = 500
     temperature: float = 0.3
     system_prompt: Optional[str] = None
     stream: bool = False
@@ -56,7 +56,8 @@ class AIChatMessage(BaseModel):
 
 class AIChatRequest(BaseModel):
     provider_id: Optional[int] = None
+    project_id: Optional[int] = None
     messages: List[AIChatMessage]
-    max_tokens: Optional[int] = 2000
+    max_tokens: Optional[int] = 500
     temperature: float = 0.3
     stream: bool = False

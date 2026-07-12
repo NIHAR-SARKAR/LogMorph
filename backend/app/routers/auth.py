@@ -10,6 +10,8 @@ from app.core.security import (
     create_refresh_token, get_current_active_user, require_admin
 )
 from app.core.logging import logger
+from app.models.user_project_access import UserProjectAccess
+from app.models.project import Project
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -174,3 +176,101 @@ def update_user_role(
     user.role = role
     db.commit()
     return {"message": f"User {user.username} role updated to {role}"}
+
+
+@router.delete("/users/{user_id}")
+def delete_user(
+    user_id: int,
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    """Permanently delete a user (admin only)."""
+    user = db.query(UserModel).filter(UserModel.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if user.is_superuser:
+        raise HTTPException(status_code=400, detail="Cannot delete superuser")
+    if user.id == admin.id:
+        raise HTTPException(status_code=400, detail="Cannot delete yourself")
+
+    username = user.username
+    db.delete(user)
+    db.commit()
+    logger.info(f"User {username} deleted by admin {admin.username}")
+    return {"message": f"User {username} deleted"}
+
+
+@router.get("/users/{user_id}/projects")
+def get_user_project_access(
+    user_id: int,
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    """Get projects assigned to a user (admin only)."""
+    user = db.query(UserModel).filter(UserModel.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    access = db.query(UserProjectAccess).filter(UserProjectAccess.user_id == user_id).all()
+    return [
+        {
+            "project_id": a.project_id,
+            "project_name": db.query(Project).filter(Project.id == a.project_id).first().name,
+            "granted_by": a.granted_by,
+            "granted_at": a.granted_at
+        }
+        for a in access
+    ]
+
+
+@router.post("/users/{user_id}/projects/{project_id}")
+def grant_project_access(
+    user_id: int,
+    project_id: int,
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    """Grant a user access to a project (admin only)."""
+    user = db.query(UserModel).filter(UserModel.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    existing = db.query(UserProjectAccess).filter(
+        UserProjectAccess.user_id == user_id,
+        UserProjectAccess.project_id == project_id
+    ).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="User already has access to this project")
+
+    access = UserProjectAccess(
+        user_id=user_id,
+        project_id=project_id,
+        granted_by=admin.id
+    )
+    db.add(access)
+    db.commit()
+    logger.info(f"Admin {admin.username} granted user {user.username} access to project {project.name}")
+    return {"message": f"Granted {user.username} access to {project.name}"}
+
+
+@router.delete("/users/{user_id}/projects/{project_id}")
+def revoke_project_access(
+    user_id: int,
+    project_id: int,
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    """Revoke a user's access to a project (admin only)."""
+    access = db.query(UserProjectAccess).filter(
+        UserProjectAccess.user_id == user_id,
+        UserProjectAccess.project_id == project_id
+    ).first()
+    if not access:
+        raise HTTPException(status_code=404, detail="Project access not found")
+
+    db.delete(access)
+    db.commit()
+    logger.info(f"Admin {admin.username} revoked user {user_id} access to project {project_id}")
+    return {"message": "Project access revoked"}

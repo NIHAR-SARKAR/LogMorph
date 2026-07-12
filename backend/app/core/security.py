@@ -104,3 +104,30 @@ async def require_developer(current_user: User = Depends(get_current_active_user
             detail="Developer access required"
         )
     return current_user
+
+
+def get_user_accessible_project_ids(user: User, db: Session) -> set[int]:
+    """Return set of project IDs the user is allowed to access.
+
+    Admin / superuser can access everything.
+    Other roles need explicit project mapping via user_project_access.
+    """
+    from app.models.user import UserRole
+    if user.role == UserRole.ADMIN or user.is_superuser:
+        from app.models.project import Project
+        return {p.id for p in db.query(Project.id).all()}
+    explicit = {p.id for p in user.accessible_projects}
+    owned = {p.id for p in user.projects}
+    return explicit | owned
+
+
+def check_project_access(user: User, project_id: int, db: Session) -> bool:
+    """Return True if user can access the given project."""
+    from app.models.user import UserRole
+    if user.role == UserRole.ADMIN or user.is_superuser:
+        return True
+    # Check owned projects
+    if any(p.id == project_id for p in user.projects):
+        return True
+    # Check explicit access
+    return any(p.id == project_id for p in user.accessible_projects)

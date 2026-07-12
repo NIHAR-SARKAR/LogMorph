@@ -220,6 +220,9 @@ export function SettingsPage() {
     config: {} as Record<string, string>,
   })
 
+  // Default max_tokens for all AI requests
+  const DEFAULT_MAX_TOKENS = 500
+
   const createProviderMutation = useMutation({
     mutationFn: (data: any) => aiApi.createProvider(data),
     onSuccess: () => {

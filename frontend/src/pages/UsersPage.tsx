@@ -2,16 +2,16 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Users, Plus, Shield, UserCog, Eye, EyeOff, Trash2,
-  Check, X, Lock
+  Check, X, Lock, FolderKanban
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
-import { authApi } from '@/services/api'
+import { authApi, projectApi } from '@/services/api'
 import { useToast } from '@/components/ui/toast'
-import type { User } from '@/types'
+import type { User, UserProjectAccess } from '@/types'
 
 export function UsersPage() {
   const [showCreate, setShowCreate] = useState(false)
@@ -25,6 +25,9 @@ export function UsersPage() {
   const [showPassword, setShowPassword] = useState(false)
   const queryClient = useQueryClient()
   const { addToast } = useToast()
+
+  const [manageUser, setManageUser] = useState<User | null>(null)
+  const [showProjects, setShowProjects] = useState(false)
 
   const { data: users, isLoading } = useQuery({
     queryKey: ['users'],
@@ -61,6 +64,58 @@ export function UsersPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] })
       addToast({ title: 'Role updated' })
+    }
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => authApi.deleteUser(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+      addToast({ title: 'User deleted' })
+    },
+    onError: (error: any) => {
+      addToast({
+        title: 'Failed to delete user',
+        description: error?.response?.data?.detail || 'Unknown error',
+        variant: 'destructive'
+      })
+    }
+  })
+
+  const { data: allProjects } = useQuery({
+    queryKey: ['projects'],
+    queryFn: () => projectApi.list().then(r => r.data),
+    enabled: showProjects
+  })
+
+  const { data: userProjects } = useQuery({
+    queryKey: ['user-projects', manageUser?.id],
+    queryFn: () => authApi.getUserProjects(manageUser!.id).then(r => r.data),
+    enabled: !!manageUser && showProjects
+  })
+
+  const grantProjectMutation = useMutation({
+    mutationFn: ({ userId, projectId }: { userId: number; projectId: number }) =>
+      authApi.grantProjectAccess(userId, projectId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['user-projects', manageUser?.id] })
+      addToast({ title: 'Project access granted' })
+    },
+    onError: (error: any) => {
+      addToast({
+        title: 'Failed to grant access',
+        description: error?.response?.data?.detail || 'Unknown error',
+        variant: 'destructive'
+      })
+    }
+  })
+
+  const revokeProjectMutation = useMutation({
+    mutationFn: ({ userId, projectId }: { userId: number; projectId: number }) =>
+      authApi.revokeProjectAccess(userId, projectId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['user-projects', manageUser?.id] })
+      addToast({ title: 'Project access revoked' })
     }
   })
 
@@ -111,7 +166,17 @@ export function UsersPage() {
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 text-xs"
+                    onClick={() => { setManageUser(user); setShowProjects(true) }}
+                    disabled={user.is_superuser}
+                  >
+                    <FolderKanban className="h-3.5 w-3.5 mr-1" />
+                    Projects
+                  </Button>
                   <select
                     className="h-8 rounded-md border border-input bg-background px-2 text-xs"
                     value={user.role}
@@ -123,14 +188,28 @@ export function UsersPage() {
                     <option value="viewer">Viewer</option>
                   </select>
                   {!user.is_superuser && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8"
-                      onClick={() => disableMutation.mutate(user.id)}
-                    >
-                      {user.is_active ? <X className="h-4 w-4 text-destructive" /> : <Check className="h-4 w-4 text-green-500" />}
-                    </Button>
+                    <>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => disableMutation.mutate(user.id)}
+                      >
+                        {user.is_active ? <X className="h-4 w-4 text-destructive" /> : <Check className="h-4 w-4 text-green-500" />}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => {
+                          if (confirm(`Delete user ${user.username}? This cannot be undone.`)) {
+                            deleteMutation.mutate(user.id)
+                          }
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </>
                   )}
                 </div>
               </div>
@@ -209,6 +288,56 @@ export function UsersPage() {
           >
             {createMutation.isPending ? 'Creating...' : 'Create User'}
           </Button>
+        </DialogFooter>
+      </Dialog>
+
+      {/* Manage Project Access Dialog */}
+      <Dialog open={showProjects} onOpenChange={setShowProjects}>
+        <DialogHeader>
+          <DialogTitle>Project Access: {manageUser?.username}</DialogTitle>
+        </DialogHeader>
+        <div className="py-4 space-y-3 max-h-[60vh] overflow-y-auto">
+          {(allProjects || []).map((project: any) => {
+            const hasAccess = (userProjects || []).some((up: UserProjectAccess) => up.project_id === project.id)
+            const isOwner = project.owner_id === manageUser?.id
+            return (
+              <div key={project.id} className="flex items-center justify-between p-3 border rounded-lg">
+                <div>
+                  <p className="font-medium text-sm">{project.name}</p>
+                  {isOwner && <Badge variant="outline" className="text-xs mt-1">Owner</Badge>}
+                </div>
+                {isOwner ? (
+                  <Badge className="text-xs">Owner</Badge>
+                ) : hasAccess ? (
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => revokeProjectMutation.mutate({ userId: manageUser!.id, projectId: project.id })}
+                    disabled={revokeProjectMutation.isPending}
+                  >
+                    Revoke
+                  </Button>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => grantProjectMutation.mutate({ userId: manageUser!.id, projectId: project.id })}
+                    disabled={grantProjectMutation.isPending}
+                  >
+                    Grant
+                  </Button>
+                )}
+              </div>
+            )
+          })}
+          {(allProjects || []).length === 0 && (
+            <p className="text-sm text-muted-foreground text-center py-4">No projects available</p>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => { setShowProjects(false); setManageUser(null) }}>Close</Button>
         </DialogFooter>
       </Dialog>
     </div>

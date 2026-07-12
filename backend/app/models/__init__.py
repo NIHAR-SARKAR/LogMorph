@@ -1,5 +1,6 @@
 from app.database import Base
 from app.models.user import User
+from app.models.user_project_access import UserProjectAccess
 from app.models.project import Project, Environment, LogSource
 from app.models.log import LogFile, LogEntry, LogTag
 from app.models.parser import ParserTemplate
@@ -10,7 +11,7 @@ from app.models.ai import AIProvider
 from app.models.settings import AppSetting
 
 __all__ = [
-    "Base", "User", "Project", "Environment", "LogSource",
+    "Base", "User", "UserProjectAccess", "Project", "Environment", "LogSource",
     "LogFile", "LogEntry", "LogTag", "ParserTemplate",
     "SavedSearch", "SavedFilter", "AnalysisReport", "ActivityLog",
     "AlertRule", "Notification", "AIProvider", "AppSetting"

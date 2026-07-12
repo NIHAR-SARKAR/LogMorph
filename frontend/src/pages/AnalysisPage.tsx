@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
-import { aiApi, logApi } from '@/services/api'
+import { aiApi, logApi, projectApi } from '@/services/api'
 import { useToast } from '@/components/ui/toast'
 import { Markdown } from '@/components/ui/markdown'
 import { MarkdownModal, ExpandButton } from '@/components/ui/markdown-modal'
@@ -56,6 +56,13 @@ export function AnalysisPage() {
     queryKey: ['severity-distribution'],
     queryFn: () => logApi.severityDistribution({ days: 7 }).then(r => r.data)
   })
+
+  const { data: projects } = useQuery({
+    queryKey: ['projects'],
+    queryFn: () => projectApi.list().then(r => r.data)
+  })
+
+  const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null)
 
   const handleAnalyzeException = async (exceptionType: string, count: number) => {
     setAnalyzingException(exceptionType)
@@ -105,7 +112,9 @@ export function AnalysisPage() {
         messages: messages.slice(-5).concat(userMsg).map(m => ({
           role: m.role,
           content: m.content
-        }))
+        })),
+        project_id: selectedProjectId || undefined,
+        max_tokens: 500,
       })
 
       const data = response.data
@@ -232,6 +241,28 @@ export function AnalysisPage() {
                 )}
               </div>
             </ScrollArea>
+
+            {/* Project Selector */}
+            <div className="px-4 py-2 border-t">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground whitespace-nowrap">Project:</span>
+                <select
+                  className="flex-1 h-8 rounded-md border border-input bg-background px-2 text-xs"
+                  value={selectedProjectId || ''}
+                  onChange={(e) => setSelectedProjectId(e.target.value ? Number(e.target.value) : null)}
+                >
+                  <option value="">All projects</option>
+                  {(projects || []).map((p: any) => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+                {selectedProjectId && (
+                  <Badge variant="outline" className="text-xs">
+                    Scoped
+                  </Badge>
+                )}
+              </div>
+            </div>
 
             {/* Quick Questions */}
             <div className="px-4 py-2 border-t">

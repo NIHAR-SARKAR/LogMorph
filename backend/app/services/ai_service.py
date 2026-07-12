@@ -75,7 +75,7 @@ class AIService:
             async for chunk in adapter.generate(
                 messages=messages,
                 config=config,
-                max_tokens=request.max_tokens or 2000,
+                max_tokens=request.max_tokens or 500,
             ):
                 chunks.append(chunk)
 
@@ -94,7 +94,7 @@ class AIService:
             )
 
     async def chat(self, db: Session, request: AIChatRequest) -> AIResponse:
-        """Chat with AI using structured messages."""
+        """Chat with AI using structured messages. Optionally scoped to a project."""
         provider = self.get_provider(db, request.provider_id)
         if not provider:
             return AIResponse(content="No AI provider configured.", provider="none")
@@ -110,12 +110,55 @@ class AIService:
 
         try:
             messages = [{"role": m.role, "content": m.content} for m in request.messages]
+
+            # If project_id is provided, inject project-specific log context as system prompt
+            if request.project_id is not None:
+                from app.models.project import Project
+                from app.models.log import LogEntry, LogFile
+                from app.models.project import LogSource
+                from sqlalchemy import desc
+
+                project = db.query(Project).filter(Project.id == request.project_id).first()
+                if project:
+                    recent_errors = (
+                        db.query(LogEntry)
+                        .join(LogFile, LogEntry.log_file_id == LogFile.id)
+                        .join(LogSource, LogFile.log_source_id == LogSource.id)
+                        .filter(
+                            LogSource.project_id == request.project_id,
+                            LogEntry.severity.in_(["error", "critical", "fatal"])
+                        )
+                        .order_by(desc(LogEntry.timestamp))
+                        .limit(20)
+                        .all()
+                    )
+
+                    error_summary = ""
+                    if recent_errors:
+                        error_lines = []
+                        for e in recent_errors[:10]:
+                            msg = e.message[:200] if e.message else ""
+                            error_lines.append(f"- [{e.severity.value}] {e.logger or 'unknown'}: {msg}")
+                        error_summary = "\n".join(error_lines)
+                    else:
+                        error_summary = "No recent errors found."
+
+                    context_msg = {
+                        "role": "system",
+                        "content": (
+                            f"You are analyzing logs for project: {project.name}.\n\n"
+                            f"Recent errors from this project:\n{error_summary}\n\n"
+                            "Answer the user's questions based only on this project's logs."
+                        ),
+                    }
+                    messages.insert(0, context_msg)
+
             config = ResolvedLLMConfig.from_ai_provider(provider)
             chunks = []
             async for chunk in adapter.generate(
                 messages=messages,
                 config=config,
-                max_tokens=request.max_tokens or 2000,
+                max_tokens=request.max_tokens or 500,
             ):
                 chunks.append(chunk)
 
@@ -147,7 +190,7 @@ Log entries:
             provider_id=provider_id,
             prompt=prompt + context,
             system_prompt="You are an expert log analysis assistant. Be concise and technical.",
-            max_tokens=1500,
+            max_tokens=500,
             temperature=0.2,
         )
         return await self.generate(db, request)
@@ -167,7 +210,7 @@ Stack Trace:
             provider_id=provider_id,
             prompt=prompt,
             system_prompt="You are an expert debugging assistant. Explain clearly and suggest concrete fixes.",
-            max_tokens=2000,
+            max_tokens=500,
             temperature=0.2,
         )
         return await self.generate(db, request)

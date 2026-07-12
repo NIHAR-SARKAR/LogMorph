@@ -10,7 +10,10 @@ from app.schemas.project import (
     Environment as EnvSchema, EnvironmentCreate,
     LogSource as LogSourceSchema, LogSourceCreate, LogSourceUpdate
 )
-from app.core.security import get_current_active_user, require_admin, require_developer
+from app.core.security import (
+    get_current_active_user, require_admin, require_developer,
+    get_user_accessible_project_ids, check_project_access
+)
 from app.core.logging import logger
 
 router = APIRouter(prefix="/projects", tags=["Projects"])
@@ -24,8 +27,9 @@ def list_projects(
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    """List all projects."""
-    query = db.query(Project)
+    """List projects the current user can access."""
+    allowed_ids = get_user_accessible_project_ids(current_user, db)
+    query = db.query(Project).filter(Project.id.in_(allowed_ids))
 
     projects = query.offset(skip).limit(limit).all()
 
@@ -63,6 +67,8 @@ def get_project(
     db: Session = Depends(get_db)
 ):
     """Get project by ID."""
+    if not check_project_access(current_user, project_id, db):
+        raise HTTPException(status_code=403, detail="Access denied to this project")
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")

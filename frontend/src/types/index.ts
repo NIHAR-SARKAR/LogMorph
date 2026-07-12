@@ -249,3 +249,10 @@ export interface ParserTemplate {
   created_at: string;
   updated_at: string;
 }
+
+export interface UserProjectAccess {
+  project_id: number;
+  project_name: string;
+  granted_by: number | null;
+  granted_at: string;
+}

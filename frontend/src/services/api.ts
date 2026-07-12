@@ -45,6 +45,10 @@ export const authApi = {
   resetPassword: (data: any) => api.post('/auth/reset-password', data),
   updateRole: (userId: number, role: string) => api.put(`/auth/users/${userId}/role`, null, { params: { role } }),
   disableUser: (userId: number) => api.put(`/auth/users/${userId}/disable`),
+  getUserProjects: (userId: number) => api.get(`/auth/users/${userId}/projects`),
+  grantProjectAccess: (userId: number, projectId: number) => api.post(`/auth/users/${userId}/projects/${projectId}`),
+  revokeProjectAccess: (userId: number, projectId: number) => api.delete(`/auth/users/${userId}/projects/${projectId}`),
+  deleteUser: (userId: number) => api.delete(`/auth/users/${userId}`),
 }
 
 // Projects
@@ -96,6 +100,8 @@ export const aiApi = {
   deleteProvider: (id: number) => api.delete(`/ai/providers/${id}`),
   generate: (data: any) => api.post('/ai/generate', data),
   chat: (data: any) => api.post('/ai/chat', data),
+  chatWithProject: (messages: any[], projectId: number, providerId?: number) =>
+    api.post('/ai/chat', { messages, project_id: projectId, provider_id: providerId, max_tokens: 500 }),
   summarize: (entries: string[], providerId?: number) => api.post('/ai/summarize', entries, { params: { provider_id: providerId } }),
   analyzeException: (exceptionType: string, stackTrace: string, providerId?: number) =>
     api.post('/ai/analyze-exception', { exception_type: exceptionType, stack_trace: stackTrace, provider_id: providerId }),
