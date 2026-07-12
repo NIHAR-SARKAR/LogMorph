@@ -98,7 +98,9 @@ export const aiApi = {
   chat: (data: any) => api.post('/ai/chat', data),
   summarize: (entries: string[], providerId?: number) => api.post('/ai/summarize', entries, { params: { provider_id: providerId } }),
   analyzeException: (exceptionType: string, stackTrace: string, providerId?: number) =>
-    api.post('/ai/analyze-exception', null, { params: { exception_type: exceptionType, stack_trace: stackTrace, provider_id: providerId } }),
+    api.post('/ai/analyze-exception', { exception_type: exceptionType, stack_trace: stackTrace, provider_id: providerId }),
+  testConnection: (providerId: number) =>
+    api.post('/ai/test-connection', null, { params: { provider_id: providerId } }),
 }
 
 // Parsers

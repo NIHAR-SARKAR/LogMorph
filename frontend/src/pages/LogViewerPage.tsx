@@ -16,6 +16,8 @@ import { useToast } from '@/components/ui/toast'
 import { useAppStore } from '@/store/appStore'
 import { useAuthStore } from '@/store/authStore'
 import { RawLogTerminal } from '@/components/RawLogTerminal'
+import { Markdown } from '@/components/ui/markdown'
+import { MarkdownModal, ExpandButton } from '@/components/ui/markdown-modal'
 import type { LogEntry, LogFile, LogSource, Project, Environment, LogFacets, HistogramPoint } from '@/types'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell
@@ -100,6 +102,16 @@ export function LogViewerPage() {
   const [selectedEntry, setSelectedEntry] = useState<LogEntry | null>(null)
   const [aiResult, setAiResult] = useState<string | null>(null)
   const [aiLoading, setAiLoading] = useState(false)
+
+  const [modalOpen, setModalOpen] = useState(false)
+  const [modalTitle, setModalTitle] = useState('')
+  const [modalContent, setModalContent] = useState('')
+
+  const openModal = (title: string, content: string) => {
+    setModalTitle(title)
+    setModalContent(content)
+    setModalOpen(true)
+  }
 
   const { start, end } = useMemo(() => getTimeRange(preset), [preset])
   const interval = useMemo(() => {
@@ -711,9 +723,12 @@ export function LogViewerPage() {
                 )}
                 {aiResult && (
                   <div>
-                    <div className="text-blue-400 text-xs mb-1"># ai analysis</div>
-                    <div className="bg-blue-950/20 border border-blue-900/30 rounded p-3 text-blue-200 whitespace-pre-wrap">
-                      {aiResult}
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="text-primary text-xs font-medium"># ai analysis</div>
+                      <ExpandButton onClick={() => openModal('AI Analysis', aiResult)} />
+                    </div>
+                    <div className="bg-card border border-border rounded p-3">
+                      <Markdown content={aiResult} />
                     </div>
                   </div>
                 )}
@@ -724,6 +739,13 @@ export function LogViewerPage() {
         </>
         )}
       </div>
+
+      <MarkdownModal
+        open={modalOpen}
+        onOpenChange={setModalOpen}
+        title={modalTitle}
+        content={modalContent}
+      />
     </div>
   )
 }

@@ -13,6 +13,8 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { aiApi, logApi } from '@/services/api'
 import { useToast } from '@/components/ui/toast'
+import { Markdown } from '@/components/ui/markdown'
+import { MarkdownModal, ExpandButton } from '@/components/ui/markdown-modal'
 
 interface ChatMessage {
   role: 'user' | 'assistant'
@@ -35,6 +37,16 @@ export function AnalysisPage() {
   const [exceptionAnalysis, setExceptionAnalysis] = useState<Record<string, string>>({})
   const { addToast } = useToast()
 
+  const [modalOpen, setModalOpen] = useState(false)
+  const [modalTitle, setModalTitle] = useState('')
+  const [modalContent, setModalContent] = useState('')
+
+  const openModal = (title: string, content: string) => {
+    setModalTitle(title)
+    setModalContent(content)
+    setModalOpen(true)
+  }
+
   const { data: topExceptions } = useQuery({
     queryKey: ['top-exceptions'],
     queryFn: () => logApi.topExceptions({ limit: 10 }).then(r => r.data)
@@ -52,9 +64,24 @@ export function AnalysisPage() {
         exceptionType,
         `Exception ${exceptionType} occurred ${count} times in the selected time range.`
       )
-      setExceptionAnalysis(prev => ({ ...prev, [exceptionType]: response.data.content || 'No analysis returned.' }))
-    } catch (e) {
-      addToast({ title: 'AI analysis failed', variant: 'destructive' })
+      const data = response.data
+      if (data.error) {
+        addToast({
+          title: `AI analysis error: ${data.provider || 'unknown'}`,
+          description: data.error,
+          variant: 'destructive'
+        })
+        setExceptionAnalysis(prev => ({ ...prev, [exceptionType]: `Error: ${data.error}` }))
+      } else {
+        setExceptionAnalysis(prev => ({ ...prev, [exceptionType]: data.content || 'No analysis returned.' }))
+      }
+    } catch (e: any) {
+      const detail = e?.response?.data?.detail || e?.message || 'Unknown error'
+      addToast({
+        title: 'AI analysis failed',
+        description: String(detail),
+        variant: 'destructive'
+      })
     } finally {
       setAnalyzingException(null)
     }
@@ -81,16 +108,38 @@ export function AnalysisPage() {
         }))
       })
 
-      const assistantMsg: ChatMessage = {
+      const data = response.data
+      if (data.error) {
+        const errorMsg: ChatMessage = {
+          role: 'assistant',
+          content: `Error: ${data.error}`,
+          timestamp: new Date()
+        }
+        setMessages(prev => [...prev, errorMsg])
+        addToast({
+          title: `AI Error (${data.provider || 'unknown'})`,
+          description: data.error,
+          variant: 'destructive'
+        })
+      } else {
+        const assistantMsg: ChatMessage = {
+          role: 'assistant',
+          content: data.content || 'I apologize, but I could not process your request.',
+          timestamp: new Date()
+        }
+        setMessages(prev => [...prev, assistantMsg])
+      }
+    } catch (error: any) {
+      const detail = error?.response?.data?.detail || error?.message || 'Unknown error'
+      const errorMsg: ChatMessage = {
         role: 'assistant',
-        content: response.data.content || 'I apologize, but I could not process your request.',
+        content: `Error: ${detail}`,
         timestamp: new Date()
       }
-      setMessages(prev => [...prev, assistantMsg])
-    } catch (error) {
+      setMessages(prev => [...prev, errorMsg])
       addToast({
         title: 'AI Error',
-        description: 'Failed to get AI response. Check your provider settings.',
+        description: String(detail),
         variant: 'destructive'
       })
     } finally {
@@ -151,10 +200,20 @@ export function AnalysisPage() {
                       className={`max-w-[80%] rounded-lg p-3 text-sm ${
                         msg.role === 'user'
                           ? 'bg-primary text-primary-foreground'
-                          : 'bg-muted'
+                          : 'bg-card border border-border shadow-sm'
                       }`}
                     >
-                      <p className="whitespace-pre-wrap">{msg.content}</p>
+                      {msg.role === 'assistant' ? (
+                        <div className="text-foreground">
+                          <Markdown content={msg.content} />
+                          <ExpandButton
+                            onClick={() => openModal('AI Response', msg.content)}
+                            className="mt-2"
+                          />
+                        </div>
+                      ) : (
+                        <p className="whitespace-pre-wrap">{msg.content}</p>
+                      )}
                       <span className="text-xs opacity-50 mt-1 block">
                         {msg.timestamp.toLocaleTimeString()}
                       </span>
@@ -317,12 +376,17 @@ export function AnalysisPage() {
                       </div>
                     )}
                     {exceptionAnalysis[exc.exception_type] && (
-                      <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 text-sm">
-                        <div className="flex items-center gap-1 text-primary text-xs font-medium mb-1">
-                          <Sparkles className="h-3 w-3" />
-                          AI Analysis
+                      <div className="bg-card border border-border rounded-lg p-3 text-sm">
+                        <div className="flex items-center justify-between mb-1">
+                          <div className="flex items-center gap-1 text-primary text-xs font-medium">
+                            <Sparkles className="h-3 w-3" />
+                            AI Analysis
+                          </div>
+                          <ExpandButton
+                            onClick={() => openModal(`Analysis: ${exc.exception_type}`, exceptionAnalysis[exc.exception_type])}
+                          />
                         </div>
-                        <p className="whitespace-pre-wrap">{exceptionAnalysis[exc.exception_type]}</p>
+                        <Markdown content={exceptionAnalysis[exc.exception_type]} />
                       </div>
                     )}
                   </div>
@@ -338,6 +402,13 @@ export function AnalysisPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <MarkdownModal
+        open={modalOpen}
+        onOpenChange={setModalOpen}
+        title={modalTitle}
+        content={modalContent}
+      />
     </div>
   )
 }

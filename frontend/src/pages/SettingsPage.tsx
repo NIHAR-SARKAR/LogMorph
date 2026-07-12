@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Settings, Palette, Globe, Database, Key, Shield, User,
   Moon, Sun, Monitor, Save, Check, AlertTriangle, Eye, EyeOff,
-  Edit2, Trash2, Power, Star
+  Edit2, Trash2, Power, Star, Activity, Loader2
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -17,13 +17,129 @@ import { useAuthStore } from '@/store/authStore'
 import { useToast } from '@/components/ui/toast'
 import type { AIProvider } from '@/types'
 
-const providerTypeMeta: Record<string, { label: string; placeholder?: string; baseUrl?: string; modelPlaceholder?: string }> = {
-  ollama: { label: 'Ollama (Local)', baseUrl: 'http://localhost:11434', modelPlaceholder: 'llama3' },
-  openai: { label: 'OpenAI', modelPlaceholder: 'gpt-4o' },
-  anthropic: { label: 'Anthropic Claude', modelPlaceholder: 'claude-3-sonnet-20240229' },
-  azure: { label: 'Azure OpenAI', baseUrl: 'https://<resource>.openai.azure.com/', modelPlaceholder: 'gpt-4-deployment' },
-  lmstudio: { label: 'LM Studio', baseUrl: 'http://localhost:1234', modelPlaceholder: 'local-model' },
-  openrouter: { label: 'OpenRouter', baseUrl: 'https://openrouter.ai/api/v1', modelPlaceholder: 'openai/gpt-4o' },
+interface ProviderField {
+  key: string
+  label: string
+  type: 'text' | 'password'
+  placeholder?: string
+  required?: boolean
+}
+
+interface ProviderMeta {
+  label: string
+  baseUrl?: string
+  modelPlaceholder?: string
+  fields: ProviderField[]
+}
+
+const providerTypeMeta: Record<string, ProviderMeta> = {
+  openai: {
+    label: 'OpenAI',
+    baseUrl: 'https://api.openai.com',
+    modelPlaceholder: 'gpt-4o',
+    fields: [
+      { key: 'api_key', label: 'API Key', type: 'password', placeholder: 'sk-...', required: true },
+    ],
+  },
+  azure: {
+    label: 'Azure OpenAI',
+    baseUrl: 'https://<resource>.openai.azure.com',
+    modelPlaceholder: 'gpt-4-deployment',
+    fields: [
+      { key: 'api_key', label: 'API Key', type: 'password', placeholder: 'Azure OpenAI key', required: true },
+      { key: 'api_version', label: 'API Version', type: 'text', placeholder: '2024-12-01-preview' },
+    ],
+  },
+  anthropic: {
+    label: 'Anthropic Claude',
+    baseUrl: 'https://api.anthropic.com',
+    modelPlaceholder: 'claude-3-sonnet-20240229',
+    fields: [
+      { key: 'api_key', label: 'API Key', type: 'password', placeholder: 'sk-ant-...', required: true },
+    ],
+  },
+  google: {
+    label: 'Google Gemini',
+    baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+    modelPlaceholder: 'gemini-1.5-flash',
+    fields: [
+      { key: 'api_key', label: 'API Key', type: 'password', placeholder: 'AIza...', required: true },
+      { key: 'project_id', label: 'Project ID (Vertex)', type: 'text', placeholder: 'my-project' },
+      { key: 'location', label: 'Location (Vertex)', type: 'text', placeholder: 'us-central1' },
+    ],
+  },
+  openrouter: {
+    label: 'OpenRouter',
+    baseUrl: 'https://openrouter.ai/api/v1',
+    modelPlaceholder: 'openai/gpt-4o',
+    fields: [
+      { key: 'api_key', label: 'API Key', type: 'password', placeholder: 'sk-or-...', required: true },
+      { key: 'http_referer', label: 'HTTP Referer', type: 'text', placeholder: 'https://logmorph.ai' },
+    ],
+  },
+  bedrock: {
+    label: 'Amazon Bedrock',
+    modelPlaceholder: 'anthropic.claude-3-sonnet-20240229-v1:0',
+    fields: [
+      { key: 'api_key', label: 'AWS Access Key ID', type: 'password', placeholder: 'AKIA...', required: true },
+      { key: 'secret_key', label: 'AWS Secret Access Key', type: 'password', placeholder: '...', required: true },
+      { key: 'region', label: 'AWS Region', type: 'text', placeholder: 'us-east-1', required: true },
+    ],
+  },
+  kimi: {
+    label: 'Kimi (Moonshot)',
+    baseUrl: 'https://api.moonshot.cn',
+    modelPlaceholder: 'moonshot-v1-8k',
+    fields: [
+      { key: 'api_key', label: 'API Key', type: 'password', placeholder: 'sk-...', required: true },
+    ],
+  },
+  ollama: {
+    label: 'Ollama (Local)',
+    baseUrl: 'http://localhost:11434',
+    modelPlaceholder: 'llama3',
+    fields: [],
+  },
+  lmstudio: {
+    label: 'LM Studio',
+    baseUrl: 'http://localhost:1234',
+    modelPlaceholder: 'local-model',
+    fields: [],
+  },
+}
+
+function renderConfigFields(
+  meta: ProviderMeta,
+  config: Record<string, string>,
+  onChange: (key: string, value: string) => void
+) {
+  if (meta.fields.length === 0) return null
+  return (
+    <>
+      {meta.fields.map((field) => (
+        <div key={field.key} className="space-y-2">
+          <label className="text-sm font-medium">
+            {field.label}
+            {field.required && <span className="text-destructive ml-1">*</span>}
+          </label>
+          <Input
+            type={field.type}
+            value={config[field.key] || ''}
+            onChange={(e) => onChange(field.key, e.target.value)}
+            placeholder={field.placeholder}
+          />
+        </div>
+      ))}
+    </>
+  )
+}
+
+function buildConfigFromForm(formConfig: Record<string, string>): Record<string, any> {
+  const out: Record<string, any> = {}
+  Object.entries(formConfig).forEach(([k, v]) => {
+    if (v !== undefined && v !== '') out[k] = v
+  })
+  return out
 }
 
 export function SettingsPage() {
@@ -95,13 +211,13 @@ export function SettingsPage() {
 
   // AI Provider add state
   const [newProvider, setNewProvider] = useState({
-    provider_type: 'ollama',
+    provider_type: 'openai',
     name: '',
     api_key: '',
     base_url: '',
     model: '',
     is_enabled: true,
-    api_version: '',
+    config: {} as Record<string, string>,
   })
 
   const createProviderMutation = useMutation({
@@ -109,13 +225,13 @@ export function SettingsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['ai-providers'] })
       setNewProvider({
-        provider_type: 'ollama',
+        provider_type: 'openai',
         name: '',
         api_key: '',
         base_url: '',
         model: '',
         is_enabled: true,
-        api_version: '',
+        config: {},
       })
       addToast({ title: 'AI provider added' })
     },
@@ -156,6 +272,13 @@ export function SettingsPage() {
       addToast({ title: 'Name and model are required', variant: 'destructive' })
       return
     }
+    const meta = providerTypeMeta[newProvider.provider_type]
+    const requiredMissing = meta.fields.filter(f => f.required && !newProvider.config[f.key])
+    if (requiredMissing.length > 0) {
+      addToast({ title: `Missing required fields: ${requiredMissing.map(f => f.label).join(', ')}`, variant: 'destructive' })
+      return
+    }
+
     const payload: any = {
       provider_type: newProvider.provider_type,
       name: newProvider.name,
@@ -163,9 +286,7 @@ export function SettingsPage() {
       base_url: newProvider.base_url || undefined,
       model: newProvider.model,
       is_enabled: newProvider.is_enabled,
-    }
-    if (newProvider.provider_type === 'azure' && newProvider.api_version) {
-      payload.config = { api_version: newProvider.api_version }
+      config: buildConfigFromForm(newProvider.config),
     }
     createProviderMutation.mutate(payload)
   }
@@ -173,30 +294,41 @@ export function SettingsPage() {
   // Configure provider dialog
   const [configureProvider, setConfigureProvider] = useState<AIProvider | null>(null)
   const [editProviderForm, setEditProviderForm] = useState<any>({})
+  const [testingProviderId, setTestingProviderId] = useState<number | null>(null)
+  const [testResult, setTestResult] = useState<{providerId: number, success: boolean, message: string} | null>(null)
 
   const openConfigure = (provider: AIProvider) => {
     setConfigureProvider(provider)
+    const cfg = provider.config || {}
     setEditProviderForm({
       name: provider.name,
       api_key: provider.api_key || '',
       base_url: provider.base_url || '',
       model: provider.model || '',
       is_enabled: provider.is_enabled,
-      api_version: provider.config?.api_version || '',
+      config: {
+        ...cfg,
+        // map top-level api_key for bedrock if needed (but we keep api_key top-level)
+      },
     })
   }
 
   const handleSaveProvider = () => {
     if (!configureProvider) return
+    const meta = providerTypeMeta[configureProvider.provider_type]
+    const requiredMissing = meta.fields.filter(f => f.required && !editProviderForm.config?.[f.key])
+    if (requiredMissing.length > 0) {
+      addToast({ title: `Missing required fields: ${requiredMissing.map(f => f.label).join(', ')}`, variant: 'destructive' })
+      return
+    }
+
     const payload: any = {
       name: editProviderForm.name,
       api_key: editProviderForm.api_key || undefined,
       base_url: editProviderForm.base_url || undefined,
       model: editProviderForm.model,
       is_enabled: editProviderForm.is_enabled,
-    }
-    if (configureProvider.provider_type === 'azure' && editProviderForm.api_version) {
-      payload.config = { api_version: editProviderForm.api_version }
+      config: buildConfigFromForm(editProviderForm.config || {}),
     }
     updateProviderMutation.mutate({ id: configureProvider.id, data: payload })
     setConfigureProvider(null)
@@ -208,6 +340,28 @@ export function SettingsPage() {
 
   const handleSetDefault = (provider: AIProvider) => {
     updateProviderMutation.mutate({ id: provider.id, data: { is_default: true } })
+  }
+
+  const handleTestConnection = async (provider: AIProvider) => {
+    setTestingProviderId(provider.id)
+    setTestResult(null)
+    try {
+      const response = await aiApi.testConnection(provider.id)
+      const data = response.data
+      if (data.success) {
+        setTestResult({ providerId: provider.id, success: true, message: data.response || 'Connection successful' })
+        addToast({ title: 'Connection successful', description: data.response || 'Provider is working.' })
+      } else {
+        setTestResult({ providerId: provider.id, success: false, message: data.error || 'Connection failed' })
+        addToast({ title: 'Connection failed', description: data.error || 'Could not connect to provider.', variant: 'destructive' })
+      }
+    } catch (e: any) {
+      const msg = e?.response?.data?.detail || e?.message || 'Unknown error'
+      setTestResult({ providerId: provider.id, success: false, message: msg })
+      addToast({ title: 'Connection failed', description: msg, variant: 'destructive' })
+    } finally {
+      setTestingProviderId(null)
+    }
   }
 
   const meta = providerTypeMeta[newProvider.provider_type]
@@ -408,7 +562,7 @@ export function SettingsPage() {
           <Card>
             <CardHeader>
               <CardTitle>AI Providers</CardTitle>
-              <CardDescription>Configure AI providers for log analysis</CardDescription>
+              <CardDescription>Configure AI providers for log analysis. Only one provider can be the default.</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
@@ -447,6 +601,19 @@ export function SettingsPage() {
                         </Button>
                       )}
                       <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleTestConnection(provider)}
+                        disabled={testingProviderId === provider.id}
+                      >
+                        {testingProviderId === provider.id ? (
+                          <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                        ) : (
+                          <Activity className="h-3.5 w-3.5 mr-1" />
+                        )}
+                        Test
+                      </Button>
+                      <Button
                         variant={provider.is_enabled ? 'default' : 'outline'}
                         size="sm"
                         onClick={() => handleToggleEnabled(provider)}
@@ -467,6 +634,11 @@ export function SettingsPage() {
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
                     </div>
+                    {testResult && testResult.providerId === provider.id && (
+                      <div className={`mt-2 p-2 rounded text-xs ${testResult.success ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+                        {testResult.success ? 'Connected: ' : 'Failed: '}{testResult.message}
+                      </div>
+                    )}
                   </div>
                 ))}
                 {(aiProviders || []).length === 0 && (
@@ -492,11 +664,13 @@ export function SettingsPage() {
                     value={newProvider.provider_type}
                     onChange={(e) => {
                       const type = e.target.value
+                      const m = providerTypeMeta[type]
                       setNewProvider({
                         ...newProvider,
                         provider_type: type,
-                        base_url: providerTypeMeta[type].baseUrl || '',
+                        base_url: m.baseUrl || '',
                         model: '',
+                        config: {},
                       })
                     }}
                   >
@@ -521,14 +695,12 @@ export function SettingsPage() {
                   type="password"
                   value={newProvider.api_key}
                   onChange={(e) => setNewProvider({ ...newProvider, api_key: e.target.value })}
-                  placeholder={newProvider.provider_type === 'azure' ? 'Azure OpenAI key' : 'sk-...'}
+                  placeholder={newProvider.provider_type === 'bedrock' ? 'AWS Access Key ID' : 'sk-...'}
                 />
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium">
-                  {newProvider.provider_type === 'azure' ? 'Azure Endpoint' : 'Base URL'}
-                </label>
+                <label className="text-sm font-medium">Base URL / Endpoint</label>
                 <Input
                   value={newProvider.base_url}
                   onChange={(e) => setNewProvider({ ...newProvider, base_url: e.target.value })}
@@ -536,26 +708,17 @@ export function SettingsPage() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">
-                    {newProvider.provider_type === 'azure' ? 'Deployment Name' : 'Model'}
-                  </label>
+                  <label className="text-sm font-medium">Model / Deployment</label>
                   <Input
                     value={newProvider.model}
                     onChange={(e) => setNewProvider({ ...newProvider, model: e.target.value })}
                     placeholder={meta.modelPlaceholder}
                   />
                 </div>
-                {newProvider.provider_type === 'azure' && (
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">API Version</label>
-                    <Input
-                      value={newProvider.api_version}
-                      onChange={(e) => setNewProvider({ ...newProvider, api_version: e.target.value })}
-                      placeholder="2024-02-15-preview"
-                    />
-                  </div>
+                {renderConfigFields(meta, newProvider.config, (key, value) =>
+                  setNewProvider({ ...newProvider, config: { ...newProvider.config, [key]: value } })
                 )}
               </div>
 
@@ -641,32 +804,27 @@ export function SettingsPage() {
             />
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium">
-              {configureProvider?.provider_type === 'azure' ? 'Azure Endpoint' : 'Base URL'}
-            </label>
+            <label className="text-sm font-medium">Base URL / Endpoint</label>
             <Input
               value={editProviderForm.base_url || ''}
               onChange={(e) => setEditProviderForm({ ...editProviderForm, base_url: e.target.value })}
             />
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium">
-                {configureProvider?.provider_type === 'azure' ? 'Deployment Name' : 'Model'}
-              </label>
+              <label className="text-sm font-medium">Model / Deployment</label>
               <Input
                 value={editProviderForm.model || ''}
                 onChange={(e) => setEditProviderForm({ ...editProviderForm, model: e.target.value })}
               />
             </div>
-            {configureProvider?.provider_type === 'azure' && (
-              <div className="space-y-2">
-                <label className="text-sm font-medium">API Version</label>
-                <Input
-                  value={editProviderForm.api_version || ''}
-                  onChange={(e) => setEditProviderForm({ ...editProviderForm, api_version: e.target.value })}
-                />
-              </div>
+            {configureProvider && renderConfigFields(
+              providerTypeMeta[configureProvider.provider_type] || { label: '', fields: [] },
+              editProviderForm.config || {},
+              (key, value) => setEditProviderForm({
+                ...editProviderForm,
+                config: { ...editProviderForm.config, [key]: value }
+              })
             )}
           </div>
           <label className="flex items-center gap-2 text-sm">
@@ -678,8 +836,27 @@ export function SettingsPage() {
             Enabled
           </label>
         </div>
+        {testResult && configureProvider && testResult.providerId === configureProvider.id && (
+          <div className={`mx-6 mb-2 p-2 rounded text-xs ${testResult.success ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+            {testResult.success ? 'Connected: ' : 'Failed: '}{testResult.message}
+          </div>
+        )}
         <DialogFooter>
           <Button variant="outline" onClick={() => setConfigureProvider(null)}>Cancel</Button>
+          {configureProvider && (
+            <Button
+              variant="outline"
+              onClick={() => handleTestConnection(configureProvider)}
+              disabled={testingProviderId === configureProvider.id}
+            >
+              {testingProviderId === configureProvider.id ? (
+                <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+              ) : (
+                <Activity className="h-3.5 w-3.5 mr-1" />
+              )}
+              Test Connection
+            </Button>
+          )}
           <Button onClick={handleSaveProvider}>Save</Button>
         </DialogFooter>
       </Dialog>
