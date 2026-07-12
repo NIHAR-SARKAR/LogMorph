@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field
 
 class AIProviderBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
-    provider_type: str = Field(..., pattern="^(openai|azure|ollama|lmstudio|anthropic|openrouter)$")
+    provider_type: str = Field(..., pattern="^(openai|azure|ollama|lmstudio|anthropic|openrouter|bedrock|kimi|google|claude)$")
     api_key: Optional[str] = None
     base_url: Optional[str] = None
     model: Optional[str] = None
