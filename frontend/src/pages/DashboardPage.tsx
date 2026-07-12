@@ -1,16 +1,24 @@
-import { useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   LayoutDashboard, FolderOpen, FileText, Activity, AlertTriangle,
   AlertOctagon, TrendingUp, HardDrive, Zap, Clock, Search
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 import { dashboardApi } from '@/services/api'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   BarChart, Bar, PieChart, Pie, Cell
 } from 'recharts'
+
+const timeFrames = [
+  { label: '1 Day', days: 1 },
+  { label: '7 Days', days: 7 },
+  { label: '30 Days', days: 30 },
+  { label: 'All Time', days: 0 },
+]
 
 const severityColors: Record<string, string> = {
   trace: '#94a3b8',
@@ -46,9 +54,10 @@ function StatCard({ title, value, icon: Icon, description, trend }: any) {
 }
 
 export function DashboardPage() {
+  const [selectedDays, setSelectedDays] = useState(7)
   const { data: stats, isLoading } = useQuery({
-    queryKey: ['dashboard-stats'],
-    queryFn: () => dashboardApi.stats().then(r => r.data),
+    queryKey: ['dashboard-stats', selectedDays],
+    queryFn: () => dashboardApi.stats(selectedDays).then(r => r.data),
     refetchInterval: 30250
   })
 
@@ -69,19 +78,36 @@ export function DashboardPage() {
 
   return (
     <div className="space-y-6 p-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-muted-foreground">Overview of your log infrastructure</p>
+      <div className="flex items-center justify-between flex-wrap gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+          <p className="text-muted-foreground">Overview of your log infrastructure</p>
+        </div>
+        <div className="flex items-center gap-1 bg-muted rounded-md p-1">
+          {timeFrames.map((tf) => (
+            <button
+              key={tf.days}
+              onClick={() => setSelectedDays(tf.days)}
+              className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
+                selectedDays === tf.days
+                  ? 'bg-background shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {tf.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard title="Total Projects" value={s.total_projects || 0} icon={FolderOpen} />
         <StatCard title="Log Files" value={s.total_log_files || 0} icon={FileText} />
-        <StatCard title="Total Entries" value={(s.total_entries || 0).toLocaleString()} icon={LayoutDashboard} />
+        <StatCard title="Total Entries" value={(s.total_entries || 0).toLocaleString()} icon={LayoutDashboard} description={selectedDays === 0 ? 'All time' : `Last ${selectedDays} days`} />
         <StatCard title="Active Monitors" value={s.active_monitors || 0} icon={Activity} />
         <StatCard title="Logs Today" value={(s.logs_today || 0).toLocaleString()} icon={Clock} />
-        <StatCard title="Errors Today" value={s.errors_today || 0} icon={AlertTriangle} description="Across all projects" />
-        <StatCard title="Warnings" value={s.warnings_today || 0} icon={AlertOctagon} />
+        <StatCard title="Errors" value={(s.errors_today || 0).toLocaleString()} icon={AlertTriangle} description={selectedDays === 0 ? 'All time' : `Last ${selectedDays} days`} />
+        <StatCard title="Warnings" value={(s.warnings_today || 0).toLocaleString()} icon={AlertOctagon} description={selectedDays === 0 ? 'All time' : `Last ${selectedDays} days`} />
         <StatCard title="Storage Used" value={`${(s.storage_used_mb || 0).toFixed(1)} MB`} icon={HardDrive} />
       </div>
 

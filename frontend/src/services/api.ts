@@ -83,7 +83,7 @@ export const logApi = {
 
 // Dashboard
 export const dashboardApi = {
-  stats: () => api.get('/dashboard/stats'),
+  stats: (days?: number) => api.get('/dashboard/stats', { params: days !== undefined ? { days } : undefined }),
   logVolume: (params?: any) => api.get('/dashboard/log-volume', { params }),
   severityChart: (params?: any) => api.get('/dashboard/severity-chart', { params }),
 }
